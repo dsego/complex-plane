@@ -545,10 +545,11 @@
         }
       }
 
-      const time = d3.range(0, 10, 0.01)
-      const width = 440
-      const height = 440
+      const width = Math.floor(document.body.offsetWidth / 3)
+      const height = width
       const margin = 25
+
+      const time = d3.range(0, 10, 0.01)
 
       const splane = new SPlane({
         svgSelector:'#s_plane',
