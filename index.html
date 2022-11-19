@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complex planes</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+      }
+
+      h3 {
+        font-weight: normal;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: max-content max-content max-content;
+      }
+
+      .equation {
+        font-family: ui-monospace, monospace;
+        font-size: 14px;
+      }
+
+      .real {
+        color: dodgerblue;
+      }
+
+      .imaginary {
+        color: deeppink;
+      }
+
+      .sine {
+        fill: none;
+        stroke: deeppink;
+      }
+
+      .cosine {
+        fill: none;
+        stroke: dodgerblue;
+      }
+
+      .axis path,
+      .axis line {
+        fill: none;
+        stroke: #ccc;
+      }
+
+      .axis > text {
+        fill: #333;
+        font-size: 12px;
+        cursor: default;
+      }
+
+      .tick > text {
+        fill: #666;
+        font-size: 11px;
+        cursor: default;
+      }
+
+      .dashed{
+        stroke: #999;
+        stroke-width: 1px;
+      }
+
+      .dashed-label {
+        fill: #999;
+        font-size: 12px;
+      }
+
+      .shaded {
+        fill: #f6f6f6;
+        stroke: none;
+      }
+
+      .unit-circle {
+        fill: #f6f6f6;
+        stroke: #ccc;
+        stroke-width: 1px;
+      }
+
+      .point {
+        fill: darkorange;
+      }
+
+      .drag {
+        cursor: default;
+        filter: url(#dropshadow);
+      }
+
+      .arc path  {
+        fill: slategray;
+        fill-opacity: 0.3;
+        stroke: none;
+      }
+
+      .arc text {
+        fill: slategray;
+      }
+
+      .distance line {
+        fill: none;
+        stroke: slategray;
+        stroke-width: 1px;
+      }
+
+      .distance text {
+        fill: slategray;
+      }
+
+
+    </style>
+</head>
+<body>
+  <div class="grid">
+    <div>
+      <h3>S-plane</h3>
+      <svg id="s_plane"></svg>
+      <p id="s_equation" class="equation"></p>
+    </div>
+    <div>
+      <h3>Z-plane</h3>
+      <svg id="z_plane"></svg>
+      <p id="z_equation" class="equation"></p>
+    </div>
+    <div>
+      <h3>Time</h3>
+      <svg id="timeplot"></svg>
+      <p id="time_equation" class="equation"></p>
+    </div>
+  </div>
+    <svg>
+      <defs>
+        <filter id="dropshadow" x="-100%" y="-100%" width="500%" height="500%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="3"></feGaussianBlur>
+          <feOffset dy="2" result="offsetblur"></feOffset>
+          <feComponentTransfer>
+            <feFuncA type="linear" slope="0.5"></feFuncA>
+          </feComponentTransfer>
+          <feMerge>
+            <feMergeNode></feMergeNode>
+            <feMergeNode in="SourceGraphic"></feMergeNode>
+          </feMerge>
+        </filter>
+      </defs>
+    </svg>
+    <script>
+
+      const fmt = d3.format(' .2f')
+
+      const sEquation = (x, y) => {
+        x = (x === Number.NEGATIVE_INFINITY) ? '-∞' : fmt(x)
+        y = y >= 0 ? '+' + fmt(y) : '-' + fmt(-y)
+        return `s = σ + ω<i>i</i> <br> &nbsp; = ${x} ${y}<i>i</i> `
+      }
+
+      const zEquation = (A, w) => {
+        return 'z = e<sup>s</sup>'+
+          '<br>&nbsp;  = e<sup>σ</sup>·e<sup>ωi</sup>'+
+          '<br>&nbsp;  = A·e<sup>ωi</sup>'+
+          `<br>&nbsp;  = ${fmt(A)}·e<sup>${fmt(w)}i</sup>`
+      }
+
+      const timeEquation = (x, y, A, w) => {
+        x = (x === Number.NEGATIVE_INFINITY) ? '-∞' : fmt(x)
+        y = fmt(y)
+        A = fmt(A)
+        w = fmt(w)
+        return `
+          e<sup>st</sup> = e<sup>(σ + ωi)t</sup>
+          <br>
+          &nbsp;&nbsp;&nbsp; = e<sup>σt</sup>·cos(ωt) + e<sup>σt</sup>·sin(ωt)i
+          <br>
+          &nbsp;&nbsp;&nbsp; = <span class="real">e<sup>${x}t</sup>·cos(${y}t)</span>
+                 + <span class="imaginary">e<sup>${x}t</sup>·sin(${y}t)i</span>
+          <br><br>
+          z<sup>t</sup> = A<sup>t</sup>·e<sup>ωit</sup>
+          <br>
+          &nbsp;&nbsp; = A<sup>t</sup>·cos(ωt) + A<sup>t</sup>·sin(ωt)i
+          <br>
+          &nbsp;&nbsp; = <span class="real">${A}<sup>t</sup>·cos(${w}t)</span>
+                 + <span class="imaginary">${A}<sup>t</sup>·sin(${w}t)i</span>
+        `
+      }
+
+      const distance = (x1, y1, x2=0, y2=0) => Math.sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2))
+      const angle = (x, y) => Math.atan2(y, x)
+
+      // z^t = A^t * e^ωit
+      const complexSignal = (A, w, t) => {
+        const amp = Math.pow(A, t)
+        return [
+          amp * Math.cos(w * t),
+          amp * Math.sin(w * t),
+        ]
+      }
+
+      // z = e^s
+      const stoz = ([re, im]) => ([
+        Math.exp(re) * Math.cos(im),
+        Math.exp(re) * Math.sin(im)
+      ])
+
+      const ztos = ([re, im]) => {
+        // z = e^s
+        // zx = e^sx * cos(sy)
+        // zy = e^sx * sin(sy)
+        // sin(sy) / cos(sy) = zy / zx
+        // tan(sy) = zy/zx
+        // sy = atan(zy/zx)
+        // sx = ln(zx / cos(sy)) = ln(zy / sin(sy))
+        const y = Math.atan2(im, re)
+        let x = Math.log(re/Math.cos(y))
+        if (!Number.isFinite(x)) x = Math.log(im/Math.sin(y))
+        if (!Number.isFinite(x)) x = Number.NEGATIVE_INFINITY
+        return [x, y]
+      }
+
+      const createClippingMask = (svg, id, width, height) => {
+        let defs = svg.select('defs')
+        if (defs.size() == 0) defs = svg.append('defs')
+        defs.append('clipPath').attr('id', id)
+          .append('rect')
+          .attr('width', width)
+          .attr('height', height)
+      }
+
+      const snap = (value, to=0, delta=0.1) => Math.abs(value - to) > delta ? value : to
+
+      const snapDrag = (callback, origin, px=3) => {
+        return d3.drag()
+          .on('start', (e) => {
+            d3.select(e.sourceEvent.target).classed('drag', true).attr('r', 7)
+          })
+          .on('drag', (e) => {
+            const x = snap(e.x, origin[0], px)
+            const y = snap(e.y, origin[1], px)
+            callback(x, y)
+          })
+          .on('end', (e) => {
+            d3.select(e.sourceEvent.target).classed('drag', false).attr('r', 5)
+          })
+      }
+
+      class Plot {
+        constructor({svgSelector, xdomain, ydomain, width, height, margin}) {
+          this.width = width
+          this.height = height
+          this.margin = margin
+          this.x = d3.scaleLinear().domain(xdomain).range([margin, width - margin])
+          this.y = d3.scaleLinear().domain(ydomain).range([margin, width - margin])
+          this.svg = d3.select(svgSelector)
+            .attr('width', width)
+            .attr('height', height)
+        }
+      }
+
+      class TimePlot extends Plot {
+        constructor(args) {
+          super(args)
+          this.drawLayout()
+          this.createPaths()
+          this.line = d3.line()
+            .x(d => this.x(d[0]))
+            .y(d => this.y(d[1]))
+        }
+
+        createPaths() {
+          this.sinePath = this.svg.append('path')
+            .classed('sine', true)
+            .attr('clip-path', 'url(#clip)')
+          this.cosinePath = this.svg.append('path')
+            .classed('cosine', true)
+            .attr('clip-path', 'url(#clip)')
+        }
+
+        drawLayout() {
+          this.svg.append('g')
+            .classed('axis x-axis', true)
+            .attr('transform', `translate(${[0, this.y(0)]})`)
+            .call(d3.axisBottom(this.x).tickSize(0))
+            .append('text').text('Time')
+              .attr('x', this.width - this.margin)
+              .attr('dy', -6)
+
+          this.svg.append('g')
+            .classed('axis y-axis', true)
+            .attr('transform', `translate(${[this.x(0), 0]})`)
+            .call(d3.axisLeft(this.y).tickSize(0))
+
+          this.svg.selectAll('.x-axis .tick')
+            .filter((d,i) => i === 0)
+            .remove()
+
+          createClippingMask(this.svg, 'clip', this.width, this.height)
+        }
+
+        update(signal) {
+          const cosine = signal.map(d => [d[0], d[1]])
+          const sine = signal.map(d => [d[0], d[2]])
+          this.sinePath.attr('d', this.line(sine))
+          this.cosinePath.attr('d', this.line(cosine))
+        }
+      }
+
+      class ComplexPlane extends Plot {
+        constructor({onInput, ...args}) {
+          super(args)
+          this.svg.on('click', (e) => {
+            const [x, y] = d3.pointer(e)
+            if (e.defaultPrevented) return
+            this.drawPoint(x, y)
+            onInput(this.x.invert(x), this.y.invert(y))
+          })
+
+          this.drag = snapDrag(
+            (x, y) => {
+              this.drawPoint(x, y)
+              onInput(this.x.invert(x), this.y.invert(y))
+            },
+            [this.x(0), this.y(0)]
+          )
+        }
+
+        drawPoint(x, y) {
+          console.warn('not implemented')
+        }
+      }
+
+
+      class SPlane extends ComplexPlane {
+        constructor(args) {
+          super(args)
+          this.drawLayout()
+
+          const yGroup = this.svg.append('g').classed('distance', true)
+          this.yLine = yGroup.append('line').attr('stroke-dasharray', '3,2')
+          this.yLabel = yGroup.append('text').text('ω')
+
+          const xGroup = this.svg.append('g').classed('distance', true)
+          this.xLine = xGroup.append('line').attr('stroke-dasharray', '3,2')
+          this.xLabel = xGroup.append('text').text('σ')
+
+          this.point =  this.svg.append('circle')
+            .classed('point', true)
+            .attr('r', 5)
+            .call(this.drag)
+        }
+
+        drawLayout() {
+          // add shaded ROC
+          this.svg.append('rect')
+            .classed('shaded', true)
+            .attr('x', this.margin)
+            .attr('y', this.margin)
+            .attr('width', this.width/2 - this.margin)
+            .attr('height', this.height - 2 * this.margin)
+
+          // draw dashed lines for multiples of PI
+          const dashed = [[  'π',    Math.PI ],
+                          [ '2π',  2*Math.PI ],
+                          [ '-π',   -Math.PI ],
+                          ['-2π', -2*Math.PI ]]
+
+          this.svg.selectAll('.dashed').data(dashed).enter()
+            .append('line')
+              .classed('dashed', true)
+              .attr('stroke-dasharray', '1,3')
+              .attr('x1', this.margin)
+              .attr('x2', this.width - this.margin)
+              .attr('y1', d => this.y(d[1]))
+              .attr('y2', d => this.y(d[1]))
+
+          this.svg.selectAll('.dashed-label').data(dashed).enter()
+            .append('text')
+              .classed('dashed-label', true)
+              .attr('x', this.width - this.margin)
+              .attr('dx', 3)
+              .attr('dy', 3)
+              .attr('y', d => this.y(d[1]))
+              .text(d => d[0])
+
+          // draw axes
+          this.svg.append('g')
+            .classed('axis x-axis', true)
+            .attr('transform', `translate(${[0, this.y(0)]})`)
+            .call(d3.axisBottom(this.x).tickSize(0))
+            .append('text').text('Re')
+              .attr('x', this.width - this.margin)
+              .attr('dy', -6)
+
+          this.svg.append('g')
+            .classed('axis y-axis', true)
+            .attr('transform', `translate(${[this.x(0), 0]})`)
+            .call(d3.axisLeft(this.y).tickSize(0))
+            .append('text').text('Im')
+              .attr('transform', 'rotate(-90)')
+              .attr('x', -this.margin)
+              .attr('dy', 15)
+
+          // remove 0-tick
+          this.svg.selectAll('.axis .tick').filter(d => d === 0).remove()
+        }
+
+        drawPoint(x, y) {
+          this.point.attr('cx', x).attr('cy', y)
+          const inverted = { x: this.x.invert(x), y: this.y.invert(y) }
+
+          this.yLine
+            .attr('x1', x)
+            .attr('y1', this.y(0))
+            .attr('x2', x)
+            .attr('y2', y)
+
+          this.yLabel
+            .attr('x', x)
+            .attr('y', this.y(inverted.y / 2))
+            .attr('dx', 6)
+            .attr('visibility', inverted.y > 1 || inverted.y < -1 ? 'visible' : 'hidden')
+
+          this.xLine
+            .attr('x1', this.x(0))
+            .attr('y1', y)
+            .attr('x2', x)
+            .attr('y2', y)
+
+          this.xLabel
+            .attr('x', this.x(inverted.x / 2))
+            .attr('y', y)
+            .attr('dy', -6)
+            .attr('visibility', inverted.x > 0.25 || inverted.x < -0.25 ? 'visible' : 'hidden')
+        }
+
+        update(x, y) {
+          // set negative width to hide
+          this.drawPoint(
+            isFinite(x) ? this.x(x) : -this.width,
+            isFinite(y) ? this.y(y) : -this.height,
+          )
+        }
+      }
+
+
+      class ZPlane extends ComplexPlane {
+        constructor(args) {
+          super(args)
+          this.drawLayout()
+
+          this.arc = d3.arc()
+
+          const arcGroup = this.svg.append('g').classed('arc', true)
+
+          this.arcPath = arcGroup.append('path')
+            .attr('transform', `translate(${[this.x(0), this.y(0)]})`)
+          this.arcLabel = arcGroup.append('text')
+            .text('ω')
+            .attr('text-anchor', 'middle')
+
+          const distanceGroup = this.svg.append('g')
+            .classed('distance', true)
+
+          this.line = distanceGroup.append('line')
+            .attr('x1', this.x(0))
+            .attr('y1', this.y(0))
+            .attr('stroke-dasharray', '3,2')
+          this.lineLabel = distanceGroup.append('text').text('A')
+
+          this.point = this.svg.append('circle')
+            .classed('point', true)
+            .attr('r', 5)
+            .call(this.drag)
+        }
+
+        drawLayout() {
+          this.svg.append('ellipse')
+            .classed('unit-circle', true)
+            .attr('cx', this.x(0))
+            .attr('cy', this.y(0))
+            .attr('rx', this.x(1) - this.x(0))
+            .attr('ry', this.y(0) - this.y(1))
+
+          this.svg.append('g')
+            .classed('axis x-axis', true)
+            .attr('transform', `translate(${[0, this.y(0)]})`)
+            .call(d3.axisBottom(this.x).tickSize(0).tickValues([-1,1]))
+            .append('text').text('Re')
+              .attr('x', this.width - this.margin)
+              .attr('dy', -6)
+
+          this.svg.append('g')
+            .classed('axis y-axis', true)
+            .attr('transform', `translate(${[this.x(0), 0]})`)
+            .call(d3.axisLeft(this.y).tickSize(0).tickValues([-1,1]))
+            .append('text').text('Im')
+              .attr('transform', 'rotate(-90)')
+              .attr('x', -this.margin)
+              .attr('dy', 15)
+
+          this.svg.selectAll('.axis .tick').filter((d) => d === 0).remove()
+        }
+        drawPoint(x, y) {
+          this.point.attr('cx', x).attr('cy', y)
+          const inverted = { x: this.x.invert(x), y: this.y.invert(y) }
+          const dx = x - this.x(0)
+          const dy = y - this.y(0)
+          const radius = Math.sqrt(dx*dx + dy*dy)
+          const maxRadius = this.x(0.3) - this.x(0)
+
+          this.arcPath.attr('d', this.arc({
+            innerRadius: 0,
+            outerRadius: Math.min(radius, maxRadius),
+            startAngle: Math.PI / 2,
+            endAngle: Math.PI / 2 + Math.atan2(y - this.y(0), x - this.x(0)),
+          }))
+
+          const f = Math.atan2(inverted.y, inverted.x) / 2
+          this.arcLabel
+            .attr('x', this.x(0.2 * Math.cos(f)))
+            .attr('y', this.y(0.2 * Math.sin(f)) + 5)
+
+          if (radius < maxRadius || (f < 0.2 && f > -0.2)) {
+            this.arcLabel.attr('visibility', 'hidden')
+          } else {
+            this.arcLabel.attr('visibility', 'visible')
+          }
+
+          this.line.attr('x2', x).attr('y2', y)
+
+          const deg = -Math.sign(inverted.x) * 90 + Math.atan2(inverted.x, inverted.y) * 180 / Math.PI
+          const pos = [this.x(inverted.x / 2), this.y(inverted.y / 2)]
+          this.lineLabel
+            .attr('x', pos[0])
+            .attr('y', pos[1])
+            .attr('dy', -6)
+            .attr('visibility', radius > maxRadius ? 'visible' : 'hidden')
+            .attr('transform', `rotate(${[deg, pos[0], pos[1]]})`)
+        }
+
+        update(x, y) {
+          this.drawPoint(this.x(x), this.y(y))
+        }
+      }
+
+      const time = d3.range(0, 10, 0.01)
+      const width = 420
+      const height = 420
+      const margin = 25
+
+      const splane = new SPlane({
+        svgSelector:'#s_plane',
+        xdomain: [-2, 2],
+        ydomain: [8, -8],
+        width,
+        height,
+        margin,
+        onInput: (x, y) => {
+          const s = [x, y]
+          const z = stoz([x, y])
+          zplane.update(...z)
+          const A = distance(z[0], z[1])
+          const w = angle(z[0], z[1])
+          const signal = time.map(t => [t, ...complexSignal(A, w, t)])
+          timeplot.update(signal)
+          updateEquations(s, A, w)
+        }
+      })
+
+      const zplane = new ZPlane({
+        svgSelector:'#z_plane',
+        xdomain: [-1.5, 1.5],
+        ydomain: [1.5, -1.5],
+        width,
+        height,
+        margin,
+        onInput: (x, y) => {
+          const z = [x, y]
+          const s = ztos([x, y])
+          const A = distance(z[0], z[1])
+          const w = angle(z[0], z[1])
+          splane.update(...s)
+          const signal = time.map(t => [t, ...complexSignal(A, w, t)])
+          timeplot.update(signal)
+          updateEquations(s, A, w)
+        }
+      })
+
+      const timeplot = new TimePlot({
+        svgSelector:'#timeplot',
+        xdomain: [0, 10],
+        ydomain: [5, -5],
+        width,
+        height,
+        margin,
+      })
+
+
+      const updateEquations = (s, A, w) => {
+        document.getElementById('s_equation').innerHTML = sEquation(s[0], s[1])
+        document.getElementById('z_equation').innerHTML = zEquation(A, w)
+        document.getElementById('time_equation').innerHTML = timeEquation(s[0], s[1], A, w)
+      }
+
+      const z = [0.6, 0.6]
+      const s = ztos(z)
+
+      const [re, im] = z
+      const A = distance(z[0], z[1])
+      const w = angle(z[0], z[1])
+
+      const signal = time.map(t => [t, ...complexSignal(A, w, t)])
+
+      timeplot.update(signal)
+      zplane.update(...z)
+      splane.update(...s)
+      updateEquations(s, A, w)
+
+    </script>
+</body>
+</html>
