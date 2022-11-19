@@ -1,117 +1,119 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Complex planes</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-      body {
-        font-family: system-ui, sans-serif;
-      }
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S-plane & Z-plane</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+    }
 
-      h3 {
-        font-weight: normal;
-      }
+    h3 {
+      font-weight: normal;
+    }
 
-      .grid {
-        display: grid;
-        grid-template-columns: max-content max-content max-content;
-      }
+    .grid {
+      display: grid;
+      grid-template-columns: max-content max-content max-content;
+    }
 
-      .equation {
-        font-family: ui-monospace, monospace;
-        font-size: 14px;
-      }
+    .equation {
+      font-family: ui-monospace, monospace;
+      font-size: 14px;
+    }
 
-      .real {
-        color: dodgerblue;
-      }
+    .equation pre {
+      display: inline;
+    }
 
-      .imaginary {
-        color: deeppink;
-      }
+    .real {
+      color: dodgerblue;
+    }
 
-      .sine {
-        fill: none;
-        stroke: deeppink;
-      }
+    .imaginary {
+      color: deeppink;
+    }
 
-      .cosine {
-        fill: none;
-        stroke: dodgerblue;
-      }
+    .sine {
+      fill: none;
+      stroke: deeppink;
+    }
 
-      .axis path,
-      .axis line {
-        fill: none;
-        stroke: #ccc;
-      }
+    .cosine {
+      fill: none;
+      stroke: dodgerblue;
+    }
 
-      .axis > text {
-        fill: #333;
-        font-size: 12px;
-        cursor: default;
-      }
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: #ccc;
+    }
 
-      .tick > text {
-        fill: #666;
-        font-size: 11px;
-        cursor: default;
-      }
+    .axis > text {
+      fill: #333;
+      font-size: 12px;
+      cursor: default;
+    }
 
-      .dashed{
-        stroke: #999;
-        stroke-width: 1px;
-      }
+    .tick > text {
+      fill: #666;
+      font-size: 11px;
+      cursor: default;
+    }
 
-      .dashed-label {
-        fill: #999;
-        font-size: 12px;
-      }
+    .dashed{
+      stroke: #999;
+      stroke-width: 1px;
+    }
 
-      .shaded {
-        fill: #f6f6f6;
-        stroke: none;
-      }
+    .dashed-label {
+      fill: #999;
+      font-size: 12px;
+    }
 
-      .unit-circle {
-        fill: #f6f6f6;
-        stroke: #ccc;
-        stroke-width: 1px;
-      }
+    .shaded {
+      fill: #f6f6f6;
+      stroke: none;
+    }
 
-      .point {
-        fill: darkorange;
-      }
+    .unit-circle {
+      fill: #f6f6f6;
+      stroke: #ccc;
+      stroke-width: 1px;
+    }
 
-      .drag {
-        cursor: default;
-        filter: url(#dropshadow);
-      }
+    .point {
+      fill: darkorange;
+    }
 
-      .arc path  {
-        fill: slategray;
-        fill-opacity: 0.3;
-        stroke: none;
-      }
+    .drag {
+      cursor: default;
+      filter: url(#dropshadow);
+    }
 
-      .arc text {
-        fill: slategray;
-      }
+    .arc path  {
+      fill: slategray;
+      fill-opacity: 0.3;
+      stroke: none;
+    }
 
-      .distance line {
-        fill: none;
-        stroke: slategray;
-        stroke-width: 1px;
-      }
+    .arc text {
+      fill: slategray;
+    }
 
-      .distance text {
-        fill: slategray;
-      }
+    .distance line {
+      fill: none;
+      stroke: slategray;
+      stroke-width: 1px;
+    }
 
-
-    </style>
+    .distance text {
+      fill: slategray;
+    }
+  </style>
 </head>
 <body>
   <div class="grid">
@@ -153,7 +155,7 @@
       const sEquation = (x, y) => {
         x = (x === Number.NEGATIVE_INFINITY) ? '-∞' : fmt(x)
         y = y >= 0 ? '+' + fmt(y) : '-' + fmt(-y)
-        return `s = σ + ω<i>i</i> <br> &nbsp; = ${x} ${y}<i>i</i> `
+        return `s = σ + ω<i>i</i> <br> &nbsp; = <pre>${x}</pre> ${y}<i>i</i> `
       }
 
       const zEquation = (A, w) => {
@@ -534,7 +536,7 @@
             .attr('x', pos[0])
             .attr('y', pos[1])
             .attr('dy', -6)
-            .attr('visibility', radius > maxRadius ? 'visible' : 'hidden')
+            .attr('visibility', radius > 50 ? 'visible' : 'hidden')
             .attr('transform', `rotate(${[deg, pos[0], pos[1]]})`)
         }
 
@@ -544,8 +546,8 @@
       }
 
       const time = d3.range(0, 10, 0.01)
-      const width = 420
-      const height = 420
+      const width = 440
+      const height = 440
       const margin = 25
 
       const splane = new SPlane({
